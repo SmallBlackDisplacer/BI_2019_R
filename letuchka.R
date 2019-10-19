@@ -1,4 +1,4 @@
-
+# вариант 19
 
 library(ggplot2)
 library(car)
