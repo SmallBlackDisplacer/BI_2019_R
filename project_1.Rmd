@@ -1,0 +1,25 @@
+---
+title: "Проект 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Привет! Вот функция:
+```{r}
+assemble_df <- function(dir_with_df) {
+  files <- list.files(dir_with_df, pattern='*.csv')
+  for (file in files){
+    if (is.null(result)){
+      result <- read.csv(paste('Data/', file, sep = ''))
+    } else {
+      s <- read.csv(paste('Data/', file, sep = ''))
+      result <- rbind(result, s)
+    }
+  }
+  return(result)
+}
+```
+
