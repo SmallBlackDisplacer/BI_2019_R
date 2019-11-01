@@ -1,8 +1,8 @@
 # df - data frame (two columns with numbers)
-# method - pirson or spearman
+# method - pearson or spearman
 
-pirspear <- function(df, method = 'pirson'){
-  if (method == 'pirson'){
+pearspear <- function(df, method = 'pearson'){
+  if (method == 'pearson'){
     return ((sum((df[,2]-mean(df[,2]))*(df[,1]-mean(df[,1])))/(length(df[,1])-1))/(sd(df[,1])*sd(df[,2])))
   } else if (method == 'spearman') {
     df <- df[order(df[,1]),]
