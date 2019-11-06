@@ -4,13 +4,17 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+library(dplyr)
+library(ggplot2)
+theme_set(theme_dark())
 ```
 
 Привет! Вот функция:
-```{r}
+```{r, echo=TRUE}
 assemble_df <- function(dir_with_df) {
   files <- list.files(dir_with_df, pattern='*.csv')
+  result <- c()
   for (file in files){
     if (is.null(result)){
       result <- read.csv(paste('Data/', file, sep = ''))
@@ -21,5 +25,110 @@ assemble_df <- function(dir_with_df) {
   }
   return(result)
 }
+```
+
+```{r}
+mollusks <- assemble_df('Data')
+names(mollusks)[2] <- 'Sex'
+mollusks$Sex <- as.factor(mollusks$Sex)
+mollusks$Rings <- as.numeric(mollusks$Rings)
+mollusks$Length <- as.numeric(mollusks$Length)
+```
+
+Насчет данных, вот факторная переменная Sex - не все студенты обозначали половую принадлежность одинаково, поэтому получились такие уровни фактора: `r levels(mollusks$Sex)`
+
+```{r}
+levels(mollusks$Sex) <- c('male','female','juvenile','male','male','juvenile')
+```
+
+Я объединила одинаковые, теперь у моллюсков только три пола: `r levels(mollusks$Sex)`
+
+Еще данных есть пропущенные значения: 
+```{r}
+sapply(mollusks, function(y) sum(length(which(is.na(y)))))
+```
+
+Есть несколько вариантов.
+
+1. Поскольку здесь много данных и мало пропущенных значений, можно просто убрать все строки с пропущенными значениями. Но тогда придется потерять часть информации, ведь вместе с пропущенными значениями будут выброшены и не пропущенные.
+
+2. Заменить пропущенные значения на меры центральной тенденции. Поскольку пол - факторная переменная и там только одно пропущенное значение, в этом случае данную строку лучше убрать. Количество колец - счетная переменная, поэтому для замены пропущенных значений лучше использовать моду. Для всех остальных переменных можно использовать среднее значение.
+
+3. Сначала, как и в первом случае, выбросить все строки с пропущенными значениями. Построить линейные модели по оставшимся значениям для каждой переменной с пропущенными значениями так, значения в каждой переменной можно было бы предсказать через значения остальных. С помощью полученных моделей предсказать пропущенные значения, заменить NA. После этого анализировать уже полные данные.
+
+Мне кажется, третий вариант будет работать лучше всего, но в данном случае я воспользуюсь вторым, потому что это проще и точно сработает. Потом, если останется время, поробую третий. Можно будет сравнить результат.
+
+```{r}
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+na_rm  <- function(x){
+  zzz <- apply(x, 2, function(z) {
+    z[is.na(z)] = mean(z, na.rm = TRUE)
+    return (z)
+  })
+  return (as.data.frame(zzz))
+}
+
+mollusks <- mollusks[!is.na(mollusks$Sex),]
+mollusks$Rings[is.na(mollusks$Rings)] <- getmode(mollusks$Rings)
+mollusks <- cbind(mollusks[,c(1,2)],na_rm(mollusks[,c(3:9)]))
+
+sapply(mollusks, function(y) sum(length(which(is.na(y)))))
+```
+
+Вот, все пропущенные значения заменены, кроме одной строчки, которую пришлось удалить.
+
+Среднее значение и стандартное отклонение переменной Length для
+моллюсков разного пола:
+```{r}
+mollusks %>% group_by(Sex) %>% summarise(mean = mean(Length), sd = sd(Length))
+```
+Среднее значение переменной Height не превышает 0.165 у `r round((dim(mollusks %>% filter(Height <= 0.165))[1]/dim(mollusks)[1])*100)`% моллюсков. Значение переменной Length = `r sort(mollusks$Length)[round(length(mollusks$Length)*0.92)]` выше чем у 92% от всех наблюдений.
+Вот структура данных после добавления новой переменной Lenght_z_scores:
+
+```{r}
+mollusks <- mollusks %>% mutate(Lenght_z_scores = (Length - mean(Length))/sd(Length))
+str(mollusks)
+```
+
+```{r}
+rings_5_and_15 <- mollusks %>% filter(Rings == 5 | Rings == 15)
+ggplot(rings_5_and_15, aes(Diameter))+
+  geom_density(fill='white')+
+  theme_dark()
+```
+
+Это частотное распределение диаметров моллюсков с количеством колец 5 и 15. На этом графике видно бимодальное распределение. Сравним же t-критерием их.
+```{r}
+t.test(Diameter~Rings, data = rings_5_and_15)
+```
+Похоже, что да, они отличаются. Хорошо.
+
+Теперь посмотрим на переменные Diameter и Whole_weight.
+```{r}
+ggplot(mollusks, aes(Diameter,Whole_weight))+
+  geom_point(col='white')
+```
+
+Зависимость между ними не линейная, поэтому линейная модель не могла бы удачно описать взаимосвязь этих переменных.
+При этом зависимость кубического корня из Whole_weight от переменной Diameter уже больше похожа на линейную. 
+```{r}
+ggplot(mollusks, aes(Diameter,Whole_weight^(1/3)))+
+  geom_point(col='white')
+```
+
+
+Таким образом, можно построить линейную модель для этих двух переменных, по которой можно будет предсказывать их значения на рассматриваемом участке.
+На этом графике заметно, что есть выброс в центре. Поскольку он в центре, он не повлияет на наклон линии тренда. Возможно, это пропущенное значение, которое было заменено на среднее.
+
+```{r}
+cor.test(mollusks$Diameter, mollusks$Whole_weight)
+```
+
+```{r}
+summary(lm(Whole_weight~Diameter, mollusks))
 ```
 
