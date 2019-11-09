@@ -26,6 +26,8 @@ str(mollusks)
 
 sapply(mollusks, function(y) sum(length(which(is.na(y)))))
 
+mollusks_for_lm <- mollusks
+
 #View(mollusks)
 
 getmode <- function(v) {
@@ -90,8 +92,26 @@ ggplot(mollusks, aes(Diameter,log(Whole_weight)))+
 ggplot(mollusks, aes(Diameter,Whole_weight^(1/3)))+
   geom_point()
 
+qqplot(mollusks$Diameter, mollusks$Whole_weight)
+
 cor.test(mollusks$Diameter, mollusks$Whole_weight)
 
 summary(lm(Whole_weight~Diameter, mollusks))
 
+
 plot(mollusks)
+
+
+mollusks_acc <- assemble_df('Data')
+
+names(mollusks_acc)[2] <- 'Sex'
+mollusks_acc$Sex <- as.factor(mollusks_acc$Sex)
+levels(mollusks_acc$Sex) <- c('male','female','juvenile','male','male','juvenile')
+
+mollusks_acc$Rings <- as.numeric(mollusks_acc$Rings)
+mollusks_acc$Length <- as.numeric(mollusks_acc$Length)
+
+mollusks_acc_na <- mollusks_acc[!complete.cases(mollusks_acc),]
+mollusks_acc_nna <- mollusks_acc[complete.cases(mollusks_acc),]
+
+lm(Sex~Rings, mollusks_acc_nna)
